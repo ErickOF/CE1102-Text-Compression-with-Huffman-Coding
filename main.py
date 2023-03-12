@@ -1,112 +1,219 @@
-from node import Node
-from tree import Tree
-from sorter import Sorter
+import os
+from typing import *
+
+from sorting import Sorting
+from tree import Node, Tree
 
 
-INPUT_PATH = './files/input/'
-OUTPUT_PATH = './files/output/'
+INPUT_PATH: str = './files/input/'
+OUTPUT_PATH: str = './files/output/'
 
 
-def readFile(name, isBinary=False):
-    text = ''
-    if isBinary:
-        with open(name, 'rb') as file:
-            text = file.read()
-    else:
-        with open(name, 'r') as file:
-            text = file.read()
-    return text
+def createFrecuencyDict(words: List[str]) -> Dict[str, int]:
+    """Create a dictionary with the word occurrences.
 
-def writeFile(name, text, isBinary=False):
-    if isBinary:
-        with open(name, 'wb') as file:
-            file.write(text)
-    else:
-        with open(name, 'w') as file:
-            file.write(text)
+    Args:
+        words (List[str]): list of words to count.
 
-def createFrecuencyDict(words):
+    Returns:
+        Dict[str, int]: dictionary with the word as a key and the occurrences
+            as value.
+    """
     frecuency = {}
+
     for word in words:
         if word in frecuency:
             frecuency[word] += 1
         else:
             frecuency[word] = 1
+
     return frecuency
 
-def getCodes(node, code=0):
-    if node.left == None:
-        return {node.token: bytes([code])}
-    else:
-        codesLeft = getCodes(node.left, code << 1)
-        codesRight = getCodes(node.right, (code << 1) + 1)
-        codes = dict(codesLeft, **codesRight)
-        return codes
+def decode(text: str) -> str:
+    """Function to decode an input text.
 
-def encodeText(words, codes):
-    codedText = bytes()
-    for word in words:
-        codedText = codedText + codes[word]
-    return codedText
+    Args:
+        text (str): text to decode.
 
-def huffmanAlgorithm(words):
-    frecuencyDict = createFrecuencyDict(words)
-    frecuencyList = [Node(k, v) for k, v in frecuencyDict.items()]
+    Returns:
+        str: decoded text.
+    """
+    text_list: List[bytes] = text.split(b'\n')
+    # Get the dictionary of tokens:occurences
+    codes: Dict[str, bytes] = eval(text_list[0])
+    # Get the encoded content
+    content: List[bytes] = text_list[1:]
 
-    Sorter().bubble(frecuencyList, f=lambda node: node.value)
+    decodedText: str = ''
 
-    while len(frecuencyList) != 1:
-        node1 = frecuencyList.pop(0)
-        node2 = frecuencyList.pop(0)
-
-        value = node1.value + node2.value
-
-        newNode = Node('n_', value)
-        newNode.left = node1
-        newNode.right = node2
-
-        frecuencyList.append(newNode)
-
-        Sorter().bubble(frecuencyList, f=lambda node: node.value)
-
-    tree = Tree(frecuencyList.pop())
-    codes = getCodes(tree.root)
-    reversedCodes = {v: k for k, v in codes.items()}
-
-    codedText = encodeText(words, codes)
-
-    codesToWrite = (str(reversedCodes) + '\n').encode('utf-8')
-
-    writeFile(OUTPUT_PATH + 'tree.xml', '<?xml version="1.0" encoding="UTF-8" ?>\n' + tree.toXML())
-    writeFile(OUTPUT_PATH + 'compressed.ce', codesToWrite + codedText, True)
-
-    return codedText
-
-def decode(text):
-    text = text.split(b'\n')
-    codes = eval(text[0])
-    content = text[1:]
-
-    decodedText = ''
+    # Decode each line of the file
     for line in content:
+        # Decode each caracter in the line
         for c in line:
+            # Decode the character
             decoded = codes[bytes([c])]
+            # Add to the decoded text
             decodedText = decodedText + decoded
+
             if decoded != '\n':
                 decodedText = decodedText + ' '
     
     return decodedText
 
+def encodeText(words: List[str], codes: List[bytes]) -> bytes:
+    """Enconde the text as bytes.
+
+    Args:
+        words (List[str]): list of words to encode.
+        codes (List[bytes]): list of codes to encode the words.
+
+    Returns:
+        bytes: byte array for the encoded text.
+    """
+    codedText = bytes()
+
+    for word in words:
+        codedText = codedText + codes[word]
+
+    return codedText
+
+def getCodes(node: Node, code:int=0) -> Dict[str, bytes]:
+    """Extract the list of codes from the tree root.
+
+    Args:
+        node (Node): root of the tree
+        code (int, optional): accumulator for the code. Defaults to 0.
+
+    Returns:
+        Dict[str, bytes]: dictionary with the token as key and the code as
+            value.
+    """
+    # If left is empty, there are not more children
+    if node.left == None:
+        # Then return the token:code
+        return {node.token: bytes([code])}
+    else:
+        # Move left and add a zero
+        codesLeft = getCodes(node.left, code << 1)
+        # Move right and add a one
+        codesRight = getCodes(node.right, (code << 1) + 1)
+        # Join the two dictionaries
+        codes = dict(codesLeft, **codesRight)
+
+        return codes
+
+def readFile(name: str, isBinary:bool=False) -> str:
+    """Read the input file.
+
+    Args:
+        name (str): name of the file to open.
+        isBinary (bool, optional): Indicates if the file is binary or not.
+            Defaults to False.
+
+    Returns:
+        str: content of the file.
+    """
+    # Select file mode
+    mode: str = 'rb' if isBinary else 'r'
+    # Content of the file
+    text: str = ''
+
+    # Read the file
+    with open(name, mode) as file:
+        text = file.read()
+
+    return text
+
+def writeFile(name: str, text: str, isBinary:bool=False) -> None:
+    """Write into a file.
+
+    Args:
+        name (str): name of the file to write.
+        text (str): content to write.
+        isBinary (bool, optional): Indicates if the file is binary or not.
+            Defaults to False.
+    """
+    # Select file mode
+    mode: str = 'wb' if isBinary else 'w'
+
+    # Write the content
+    with open(name, mode) as file:
+        file.write(text)
+
+
+def huffmanAlgorithm(words: List[str]) -> str:
+    """Apply Huffman Algorithm
+
+    Args:
+        words (List[str]): words to encode
+
+    Returns:
+        str: encoded text
+    """
+    # Get the frequency dictionary
+    frecuencyDict: Dict[str, int] = createFrecuencyDict(words)
+    # Convert to a list of nodes
+    frecuencyList = [Node(k, v) for k, v in frecuencyDict.items()]
+
+    # Sorting the list of nodes
+    Sorting().bubble(frecuencyList, f=lambda node: node.value)
+
+    # Build the tree
+    while len(frecuencyList) != 1:
+        node1: Node = frecuencyList.pop(0)
+        node2: Node = frecuencyList.pop(0)
+
+        value: int = node1.value + node2.value
+
+        newNode: Node = Node('n_', value)
+        newNode.left = node1
+        newNode.right = node2
+
+        frecuencyList.append(newNode)
+
+        Sorting().bubble(frecuencyList, f=lambda node: node.value)
+
+    # Create the Huffman tree
+    tree: Tree = Tree(frecuencyList.pop())
+    # Get the codes from the tree
+    codes: Dict[str, bytes] = getCodes(tree.root)
+    # Exchange the str and bytes
+    reversedCodes: Dict[bytes, str] = {v: k for k, v in codes.items()}
+
+    # Encode input text
+    encodedText: str = encodeText(words, codes)
+
+    # Converts to UTF-8
+    codesToWrite = f'{reversedCodes}\n'.encode('utf-8')
+
+    # Write XML output file
+    writeFile(
+        os.path.join(OUTPUT_PATH, 'tree.xml'),
+        f'<?xml version="1.0" encoding="UTF-8" ?>\n{tree.toXML()}'
+    )
+    # Write the enconded text into the output file
+    writeFile(
+        os.path.join(OUTPUT_PATH, 'compressed.ce'),
+        codesToWrite + encodedText,
+        True
+    )
+
+    return encodedText
+
 
 if __name__ == '__main__':
-    text = readFile(INPUT_PATH + 'test.txt')
+    # Get the input text
+    text: str = readFile(INPUT_PATH + 'test.txt')
     print('Original:\n', text, '\n', sep='')
+
+    # Extract the words
     text = text.replace('\n', ' \n ')
-    words = text.split(' ')
+    words: List[str] = text.split(' ')
 
-    codedText = huffmanAlgorithm(words)
-    print('Coded:\n', codedText, '\n', sep='')
+    # Compress the text
+    encodedText: str = huffmanAlgorithm(words)
+    print(f'Coded:\n{encodedText}\n')
 
-    codedFile = readFile(OUTPUT_PATH + 'compressed.ce', True)
-    print('Decoded:\n', decode(codedFile), sep='')
-
+    # Decompress the text
+    encodedFile: str = readFile(OUTPUT_PATH + 'compressed.ce', True)
+    print(f'Decoded:\n{decode(encodedFile)}')
